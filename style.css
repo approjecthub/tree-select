@@ -13,10 +13,12 @@ ul {
 .items.hide{
   display: none;
 }
-.item-expansion, .item-selection, .item-title{
+.item-title{
   margin: 0 0.5rem;
 }
 .item-expansion, .item-selection{
+  margin: auto;
+  margin-right: 0.5rem;
   width: 1rem;
   cursor: pointer;
 }

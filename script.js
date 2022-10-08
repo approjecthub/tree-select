@@ -1,10 +1,31 @@
-const RIGHT_CARET_CLASS = "fa-caret-right";
-const DOWN_CARET_CLASS = "fa-caret-down";
-// const CHECKBOX_PARTIAL_UNICODE = "&#128307;";
-// const CHECKBOX_UNSELECT_UNICODE = "&#11036;";
-const CHECKBOX_PARTIAL_HTML = '<i class="fa-solid fa-square"></i>'
-const CHECKBOX_UNSELECT_HTML = '<i class="fa-regular fa-square"></i>'
-const CHECKBOX_SELECT_HTML = '<i class="fa-regular fa-square-check"></i>';
+const COMMON_CLASSES = {
+  FA_SHARP: "fa-sharp",
+  FA_SOLID: "fa-solid",
+  FA_REGULAR: "fa-regular"
+}
+
+const CARET_CLASSES ={
+  CUSTOM: "item-expansion",
+  RIGHT_CARET: "fa-caret-right",
+  DOWN_CARET: "fa-caret-down",
+}
+
+const CHECKBOX_CLASSES = {
+  CUSTOM: "item-selection",
+  UNCHECK_OR_PARTIAL: "fa-square",
+  CHECK: "fa-square-check"
+}
+
+const CHECKBOX_STATES = {
+  UNSELECTED: 0,
+  SELECTED: 1,
+  PARTIAL: 2
+}
+
+const EXPANSION_STATES = {
+  HIDE: 0,
+  UNHIDE: 1
+}
 
 const itemContainer = document.getElementById("rootItem");
 
@@ -50,25 +71,70 @@ const treeData = [
   },
 ];
 
+/*
+  floag->0 means 'unselect'
+  floag->1 means 'select'
+  floag->2 means 'partial'
+ */
+  function checkboxIconClassAssignment(flag, icon){
+    icon.className=""
+    icon.classList.add(CHECKBOX_CLASSES.CUSTOM)
+    if(flag===CHECKBOX_STATES.UNSELECTED){
+      icon.classList.add(CHECKBOX_CLASSES.UNCHECK_OR_PARTIAL, COMMON_CLASSES.FA_REGULAR);
+    }
+    else if(flag===CHECKBOX_STATES.SELECTED){
+      icon.classList.add(COMMON_CLASSES.FA_REGULAR, CHECKBOX_CLASSES.CHECK);
+    }
+    else if(flag===CHECKBOX_STATES.PARTIAL){
+      icon.classList.add(CHECKBOX_CLASSES.UNCHECK_OR_PARTIAL, COMMON_CLASSES.FA_SOLID);
+    }
+  }
+
+
+/*
+  floag->0 means show hide icon
+  floag->1 means show unhide icon
+ */
+function expansionIconClassAssignment(flag, icon){
+  if(!icon.classList.contains(CARET_CLASSES.CUSTOM)){
+    icon.classList.add(CARET_CLASSES.CUSTOM)
+  }
+  if(!icon.classList.contains(COMMON_CLASSES.FA_SHARP)){
+    icon.classList.add(COMMON_CLASSES.FA_SHARP)
+  }
+  if(!icon.classList.contains(COMMON_CLASSES.FA_SOLID)){
+    icon.classList.add(COMMON_CLASSES.FA_SOLID)
+  }
+
+  if(flag===EXPANSION_STATES.HIDE){
+    icon.classList.remove(CARET_CLASSES.DOWN_CARET)
+    icon.classList.add(CARET_CLASSES.RIGHT_CARET);
+  }
+  else if(flag===EXPANSION_STATES.UNHIDE){
+    icon.classList.remove(CARET_CLASSES.RIGHT_CARET);
+    icon.classList.add(CARET_CLASSES.DOWN_CARET);
+  }
+}
+
 function insertToDOM(queue, parent, data) {
   const liItem = document.createElement("li");
   const divItem = document.createElement("div");
   divItem.classList.add("item");
-  const span1 = document.createElement("span");
-  span1.classList.add("item-expansion");
 
-  const span2 = document.createElement("span");
-  span2.classList.add("item-selection");
-  span2.innerHTML = CHECKBOX_UNSELECT_HTML;
+  const icon1 = document.createElement("i");
+  icon1.classList.add(CARET_CLASSES.CUSTOM)
 
-  const span3 = document.createElement("div");
-  span3.classList.add("item-title");
-  span3.textContent = data.title;
+  const icon2 = document.createElement("i");
+  checkboxIconClassAssignment(CHECKBOX_STATES.UNSELECTED,icon2)
 
-  divItem.append(span1, span2, span3);
+  const title = document.createElement("p");
+  title.classList.add("item-title");
+  title.textContent = data.title;
+
+  divItem.append(icon1, icon2, title);
   liItem.append(divItem);
   if (data.children) {
-    span1.innerHTML = '<i class="fa-sharp fa-solid fa-caret-right"></i>';
+    expansionIconClassAssignment(EXPANSION_STATES.UNHIDE, icon1)
     queue.push([liItem, data]);
   }
   parent.append(liItem);
@@ -96,31 +162,24 @@ function constructData() {
 constructData();
 itemContainer.addEventListener("click", (evt) => {
   if (
-    evt.target.classList.contains(RIGHT_CARET_CLASS) ||
-    evt.target.classList.contains(DOWN_CARET_CLASS)
+    evt.target.classList.contains(CARET_CLASSES.RIGHT_CARET) ||
+    evt.target.classList.contains(CARET_CLASSES.DOWN_CARET)
   ) {
-    if (evt.target.classList.contains(RIGHT_CARET_CLASS)) {
-      evt.target.classList.remove(RIGHT_CARET_CLASS);
-      evt.target.classList.add(DOWN_CARET_CLASS);
+    if (evt.target.classList.contains(CARET_CLASSES.RIGHT_CARET)) {
+      expansionIconClassAssignment(EXPANSION_STATES.UNHIDE, evt.target)
     } else {
-      evt.target.classList.remove(DOWN_CARET_CLASS);
-      evt.target.classList.add(RIGHT_CARET_CLASS);
+      expansionIconClassAssignment(EXPANSION_STATES.HIDE, evt.target)
     }
-    const parent = evt.target.parentElement.parentElement.parentElement;
+    const parent = evt.target.parentElement.parentElement;
     const children = parent.querySelector(".items");
     children.classList.toggle("hide");
   }
-  else if(evt.target.classList.contains('fa-square')|| evt.target.classList.contains('fa-square-check')){
-    // if(CHECKBOX_UNSELECT_UNICODE.includes(evt.target.innerHTML.codePointAt(0))){
-    //   evt.target.innerHTML=CHECKBOX_SELECT_UNICODE
-    // }
-    if(evt.target.classList.contains('fa-square')){
-      evt.target.classList.remove('fa-square')
-      evt.target.classList.add('fa-square-check')
+  else if(evt.target.classList.contains(CHECKBOX_CLASSES.UNCHECK_OR_PARTIAL)|| evt.target.classList.contains(CHECKBOX_CLASSES.CHECK)){
+    if(evt.target.classList.contains(CHECKBOX_CLASSES.UNCHECK_OR_PARTIAL)){
+      checkboxIconClassAssignment(CHECKBOX_STATES.SELECTED, evt.target)
     }
     else{
-      evt.target.classList.remove('fa-square-check')
-      evt.target.classList.add('fa-square')
+      checkboxIconClassAssignment(CHECKBOX_STATES.UNSELECTED, evt.target)
     }
   }
 });

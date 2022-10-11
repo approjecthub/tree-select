@@ -184,7 +184,7 @@ function insertToDOM(queue, parent, data) {
 }
 
 function constructData() {
-  // const treeData = getChildCount()
+  const treeData = getChildCount();
   const queue = [];
   for (let i = 0; i < treeData.length; i++) {
     insertToDOM(queue, itemContainer, treeData[i]);
@@ -195,23 +195,20 @@ function constructData() {
     if (data.children) {
       const ulItem = document.createElement("ul");
       ulItem.classList.add("items");
-      let childCount = 0
       for (const child of data.children) {
         insertToDOM(queue, ulItem, child);
-        childCount++
       }
 
-      node.dataset.totalChildren = childCount;
+      node.dataset.totalChildren = data.childCount;
       node.dataset.totalSelectedChildren = 0;
       node.append(ulItem);
     }
   }
 }
 
-constructData(); 
+constructData();
 
-function propagateSelectionToParent(element) {
-  checkboxIconClassAssignment(CHECKBOX_STATES.SELECTED, element);
+function propagateSelectionToParent(element, delta) {
   if (
     element.parentElement &&
     element.parentElement.parentElement &&
@@ -224,35 +221,37 @@ function propagateSelectionToParent(element) {
       )
     )
       return;
+
     const dataContainerNode =
       element.parentElement.parentElement.parentElement.parentElement;
 
-    
-    dataContainerNode.dataset.totalSelectedChildren = `${
-      +dataContainerNode.dataset.totalSelectedChildren + 1
-    }`;
+    let totalSelectedChildren =
+      +dataContainerNode.dataset.totalSelectedChildren;
+    totalSelectedChildren += delta;
+    dataContainerNode.dataset.totalSelectedChildren = totalSelectedChildren;
 
     const selectionNodeOfDataContainer =
       dataContainerNode.firstElementChild.querySelector(
         `.${CHECKBOX_CLASSES.CUSTOM}`
       );
 
-    checkboxIconClassAssignment(
-      CHECKBOX_STATES.PARTIAL,
-      selectionNodeOfDataContainer
-    );
-
-    if (
-      dataContainerNode.dataset.totalSelectedChildren ===
-      dataContainerNode.dataset.totalChildren
-    ) {
-      propagateSelectionToParent(selectionNodeOfDataContainer);
+    if (totalSelectedChildren === +dataContainerNode.dataset.totalChildren) {
+      checkboxIconClassAssignment(
+        CHECKBOX_STATES.SELECTED,
+        selectionNodeOfDataContainer
+      );
+    } else {
+      checkboxIconClassAssignment(
+        CHECKBOX_STATES.PARTIAL,
+        selectionNodeOfDataContainer
+      );
     }
+
+    propagateSelectionToParent(selectionNodeOfDataContainer, delta);
   }
 }
 
-function propagateUnselectionToParent(element, currState) {
-  if (element) checkboxIconClassAssignment(currState, element);
+function propagateUnselectionToParent(element, delta) {
   if (
     element.parentElement &&
     element.parentElement.parentElement &&
@@ -269,32 +268,40 @@ function propagateUnselectionToParent(element, currState) {
       element.parentElement.parentElement.parentElement.parentElement;
     let totalSelectedChildren =
       +dataContainerNode.dataset.totalSelectedChildren;
-    if (totalSelectedChildren === 0) return;
 
-    totalSelectedChildren--;
+    totalSelectedChildren -= delta;
     dataContainerNode.dataset.totalSelectedChildren = totalSelectedChildren;
 
     const selectionNodeOfDataContainer =
       dataContainerNode.firstElementChild.querySelector(
         `.${CHECKBOX_CLASSES.CUSTOM}`
       );
-
-    propagateUnselectionToParent(
-      selectionNodeOfDataContainer,
-      +totalSelectedChildren === 0
-        ? CHECKBOX_STATES.UNSELECTED
-        : CHECKBOX_STATES.PARTIAL
-    );
+    if (totalSelectedChildren === 0) {
+      checkboxIconClassAssignment(
+        CHECKBOX_STATES.UNSELECTED,
+        selectionNodeOfDataContainer
+      );
+    } else {
+      checkboxIconClassAssignment(
+        CHECKBOX_STATES.PARTIAL,
+        selectionNodeOfDataContainer
+      );
+    }
+    propagateUnselectionToParent(selectionNodeOfDataContainer, delta);
   }
 }
 
 function propagateSelectionToChild(element) {
-  //upward movement
-  propagateSelectionToParent(element);
-
-  //downard movement
   const queue = [];
   const parent = element.parentElement.parentElement;
+
+  //upward movement
+  propagateSelectionToParent(
+    element,
+    +parent.dataset.totalChildren - +parent.dataset.totalSelectedChildren
+  );
+
+  //downard movement
   parent.dataset.totalSelectedChildren = parent.dataset.totalChildren;
   const child = parent.querySelector(".items");
   queue.push(child);
@@ -314,12 +321,13 @@ function propagateSelectionToChild(element) {
 }
 
 function propagateUnselectionToChild(element) {
+  const parent = element.parentElement.parentElement;
   //upward movement
-  propagateUnselectionToParent(element, CHECKBOX_STATES.UNSELECTED);
+  propagateUnselectionToParent(element, parent.dataset.totalSelectedChildren);
 
   //downard movement
   const queue = [];
-  const parent = element.parentElement.parentElement;
+
   parent.dataset.totalSelectedChildren = 0;
   const child = parent.querySelector(".items");
   queue.push(child);
@@ -339,6 +347,7 @@ function propagateUnselectionToChild(element) {
 }
 
 itemContainer.addEventListener("click", (evt) => {
+  //expansion icon event handling
   if (
     evt.target.classList.contains(CARET_CLASSES.RIGHT_CARET) ||
     evt.target.classList.contains(CARET_CLASSES.DOWN_CARET)
@@ -351,11 +360,15 @@ itemContainer.addEventListener("click", (evt) => {
     const parent = evt.target.parentElement.parentElement;
     const children = parent.querySelector(".items");
     children.classList.toggle("hide");
-  } else if (
+  }
+  //selection icon event handling
+  else if (
     evt.target.classList.contains(CHECKBOX_CLASSES.UNCHECK_OR_PARTIAL) ||
     evt.target.classList.contains(CHECKBOX_CLASSES.CHECK)
   ) {
+    //current state: unselected or partial
     if (evt.target.classList.contains(CHECKBOX_CLASSES.UNCHECK_OR_PARTIAL)) {
+      checkboxIconClassAssignment(CHECKBOX_STATES.SELECTED, evt.target);
       const parent = evt.target.parentElement.parentElement;
       //unselected state
       if (evt.target.classList.contains(COMMON_CLASSES.FA_REGULAR)) {
@@ -365,18 +378,20 @@ itemContainer.addEventListener("click", (evt) => {
         ) {
           propagateSelectionToChild(evt.target);
         } else {
-          propagateSelectionToParent(evt.target);
+          propagateSelectionToParent(evt.target, 1);
         }
       }
       //partially selected state
       else {
         propagateSelectionToChild(evt.target);
       }
-    } else {
+    }
+    //current state: selected
+    else {
       // 1.propage upwards to decrement the selected child count of the parent
       // 2.propaget downwards to unselect all the children
-      // checkboxIconClassAssignment(CHECKBOX_STATES.UNSELECTED, evt.target);
 
+      checkboxIconClassAssignment(CHECKBOX_STATES.UNSELECTED, evt.target);
       const parent = evt.target.parentElement.parentElement;
       if (
         parent.dataset.totalSelectedChildren &&
@@ -384,7 +399,7 @@ itemContainer.addEventListener("click", (evt) => {
       ) {
         propagateUnselectionToChild(evt.target);
       } else {
-        propagateUnselectionToParent(evt.target, CHECKBOX_STATES.UNSELECTED);
+        propagateUnselectionToParent(evt.target, 1);
       }
     }
   }
